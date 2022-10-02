@@ -17,11 +17,13 @@ abstract class FeedDatabase : RoomDatabase() {
     companion object {
         private var INSTANCE: FeedDatabase? = null
         fun getFeedDataBase(context : Context): FeedDatabase {
-            if (INSTANCE == null) {
-                INSTANCE = Room.databaseBuilder(
-                    context,
-                    FeedDatabase::class.java, "feed_database")
-                        .build()
+            synchronized(this) {  // keep the instance thread-safe
+                if (INSTANCE == null) {
+                    INSTANCE = Room.databaseBuilder(
+                            context,
+                            FeedDatabase::class.java, "feed_database")
+                            .build()
+                }
             }
             return INSTANCE as FeedDatabase
         }

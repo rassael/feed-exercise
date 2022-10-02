@@ -5,7 +5,6 @@ import com.lightricks.feedexercise.data.FeedItem
 import com.lightricks.feedexercise.data.FeedRepository
 import com.lightricks.feedexercise.util.Event
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 import java.io.IOException
 import java.lang.IllegalArgumentException
 
@@ -33,27 +32,27 @@ open class FeedViewModel(private val repository: FeedRepository) : ViewModel() {
 
     init {
         refresh()
-        viewModelScope.launch {
-            repository.getItems()
+        viewModelScope.launch { updateItems() }
+    }
+
+    private suspend fun updateItems() {
+        repository.getItems()
                 .collect { feedItems ->
-                    updateState { copy(feedItems = feedItems) }  // updating 'feedItems' in stateInternal with the items received from repository's Flow
+                    updateState { copy(feedItems = feedItems) }
                 }
-        }
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            try {
-                repository.refresh()
-            } catch (e: IOException) {
-                networkErrorEvent.value = Event(e.message.toString())
-            } catch (e: HttpException) {
-                networkErrorEvent.value = Event(e.message.toString())
+        if (!stateInternal.value?.isLoading!!) {
+            viewModelScope.launch {
+                updateState { copy(isLoading = true) }  // isn't it happen from the fragment?
+                try { repository.refresh() }
+                catch (e: IOException) { networkErrorEvent.value = Event(e.message.toString()) }
+                finally { updateState { copy(isLoading = false) }
+                }
             }
-            updateState { copy(isLoading = false) }
         }
     }
-
 
     private fun updateState(transform: State.() -> State) {
         stateInternal.value = transform(getState())
@@ -70,7 +69,7 @@ open class FeedViewModel(private val repository: FeedRepository) : ViewModel() {
 
     companion object {
         private val DEFAULT_STATE = State(
-            feedItems = ArrayList(),
+            feedItems = emptyList(),
             isLoading = false
         )
     }

@@ -5,16 +5,10 @@ import com.lightricks.feedexercise.database.FeedDatabase
 import com.lightricks.feedexercise.database.FeedItemEntity
 import com.lightricks.feedexercise.network.FeedApiService
 import com.lightricks.feedexercise.network.GetFeedResponse
-import com.lightricks.feedexercise.network.TemplatesMetadataItem
-import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import com.lightricks.feedexercise.network.ItemDto
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import retrofit2.HttpException
-import retrofit2.Response
-import retrofit2.Retrofit
-import retrofit2.converter.moshi.MoshiConverterFactory
 
 /**
  * This is our data layer abstraction. Users of this class don't need to know
@@ -22,27 +16,15 @@ import retrofit2.converter.moshi.MoshiConverterFactory
  */
 class FeedRepository(private val feedDatabase: FeedDatabase) {
 
-    private val moshi: Moshi = Moshi.Builder()
-        .add(KotlinJsonAdapterFactory())
-        .build()
-    private val baseURI: String = "https://assets.swishvideoapp.com/"
-    private val retrofit: Retrofit = Retrofit.Builder()
-        .addConverterFactory(MoshiConverterFactory.create(moshi))
-        .baseUrl(baseURI)
-        .build()
-    private val feedApiService: FeedApiService = retrofit.create(FeedApiService::class.java)
+    private val feedApiService: FeedApiService = FeedApiService.getFeedApiService()
 
     suspend fun refresh() {
         withContext(Dispatchers.IO) {
-            val retrofitResponse: Response<GetFeedResponse> = feedApiService.getFeedItems()
-            if (!retrofitResponse.isSuccessful) {
-                throw HttpException(retrofitResponse)
-            }
-            val metadataItems: List<TemplatesMetadataItem> =
-                retrofitResponse.body()?.templatesMetadata!!
-            val feedItems: List<FeedItemEntity> = metadataItems.toEntities()
-            feedDatabase.withTransaction {  // run this block as an atomic command, to prevent dead-lock.
-                // in addition, adding the new items immediately after the deleting. prevent the white screen)
+            val retrofitResponse: GetFeedResponse = feedApiService.getFeedItems()
+            val itemDto: List<ItemDto> = retrofitResponse.itemDto
+            val feedItems: List<FeedItemEntity> = itemDto.toEntities()
+            feedDatabase.withTransaction {  // run this block as an atomic command in order to add
+                // the new items immediately after the deleting (prevent the white screen)
                 feedDatabase.feedDao.deleteAll()
                 feedDatabase.feedDao.insertListOfItems(feedItems)
             }
@@ -63,7 +45,7 @@ fun List<FeedItemEntity>.toFeedItems(): List<FeedItem> {
     }
 }
 
-fun List<TemplatesMetadataItem>.toEntities(): List<FeedItemEntity> {
+fun List<ItemDto>.toEntities(): List<FeedItemEntity> {
     return map {
         FeedItemEntity(
             it.id,

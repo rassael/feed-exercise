@@ -10,7 +10,7 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "feedItemsDataBase")
 data class FeedItemEntity (
-    @PrimaryKey val id: String,
+    @PrimaryKey @ColumnInfo(name = "id") val id: String,
     @ColumnInfo(name = "thumbnailUrl") val thumbnailUrl: String,
     @ColumnInfo(name = "isPremium") val isPremium: Boolean
 )

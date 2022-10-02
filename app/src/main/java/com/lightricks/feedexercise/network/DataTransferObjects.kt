@@ -8,7 +8,7 @@ import com.squareup.moshi.JsonClass
  */
 
 @JsonClass(generateAdapter = true)
-data class TemplatesMetadataItem(
+data class ItemDto(
     @Json(name = "configuration")
     val configuration: String,
     @Json(name = "id")
@@ -28,5 +28,5 @@ data class TemplatesMetadataItem(
 @JsonClass(generateAdapter = true)
 data class GetFeedResponse(
     @Json(name = "templatesMetadata")
-    val templatesMetadata: List<TemplatesMetadataItem>
+    val itemDto: List<ItemDto>
 )
