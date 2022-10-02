@@ -14,11 +14,9 @@ import kotlinx.coroutines.flow.map
  * This is our data layer abstraction. Users of this class don't need to know
  * where the data actually comes from (network, database or somewhere else).
  */
-class FeedRepository(private val feedDatabase: FeedDatabase) {
+open class FeedRepository(private val feedDatabase: FeedDatabase, private val feedApiService: FeedApiService) : Repository {
 
-    private val feedApiService: FeedApiService = FeedApiService.getFeedApiService()
-
-    suspend fun refresh() {
+    override suspend fun refresh() {
         withContext(Dispatchers.IO) {
             val retrofitResponse: GetFeedResponse = feedApiService.getFeedItems()
             val itemDto: List<ItemDto> = retrofitResponse.itemDto
@@ -31,7 +29,7 @@ class FeedRepository(private val feedDatabase: FeedDatabase) {
         }
     }
 
-    fun getItems(): Flow<List<FeedItem>> {
+    override fun getItems(): Flow<List<FeedItem>> {
         return feedDatabase.feedDao.getAll().map { it.toFeedItems() }
     }
 }
@@ -53,4 +51,9 @@ fun List<ItemDto>.toEntities(): List<FeedItemEntity> {
             it.isPremium
         )
     }
+}
+
+interface Repository {
+    suspend fun refresh()
+    fun getItems(): Flow<List<FeedItem>>
 }

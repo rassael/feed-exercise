@@ -15,25 +15,24 @@ interface FeedApiService {
 
     companion object {
         private const val baseURI: String = "https://assets.swishvideoapp.com/"
-        private var moshi: Moshi? = null
-        private var retrofit: Retrofit? = null
         private var INSTANCE: FeedApiService? = null
-        fun getFeedApiService(): FeedApiService {
-            synchronized(this) {   // keep the instance thread-safe
-                if (INSTANCE == null) {
-                    moshi = Moshi.Builder()
-                            .add(KotlinJsonAdapterFactory())
-                            .build()
-                    retrofit = Retrofit.Builder()
-                            .addConverterFactory(MoshiConverterFactory.create(moshi!!))
-                            .baseUrl(baseURI)
-                            .build()
-                    INSTANCE = retrofit!!.create(FeedApiService::class.java)
-                }
+
+        @Synchronized  // keep the instance thread-safe
+        fun getInstance(): FeedApiService {
+            if (INSTANCE == null) {
+                val moshi: Moshi = Moshi.Builder()
+                        .add(KotlinJsonAdapterFactory())
+                        .build()
+                val retrofit : Retrofit = Retrofit.Builder()
+                        .addConverterFactory(MoshiConverterFactory.create(moshi))
+                        .baseUrl(baseURI)
+                        .build()
+                INSTANCE = retrofit.create(FeedApiService::class.java)
             }
             return INSTANCE as FeedApiService
         }
     }
+
 
     /** method that executes a GET request and returns an Coroutine’s Response that contains the response */
     @GET("/Android/demo/feed.json")

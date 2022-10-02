@@ -3,6 +3,7 @@ package com.lightricks.feedexercise.ui.feed
 import androidx.lifecycle.*
 import com.lightricks.feedexercise.data.FeedItem
 import com.lightricks.feedexercise.data.FeedRepository
+import com.lightricks.feedexercise.data.Repository
 import com.lightricks.feedexercise.util.Event
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -11,7 +12,7 @@ import java.lang.IllegalArgumentException
 /**
  * This view model manages the data for [FeedFragment].
  */
-open class FeedViewModel(private val repository: FeedRepository) : ViewModel() {
+open class FeedViewModel(private val repository: Repository) : ViewModel() {
     private val stateInternal: MutableLiveData<State> = MutableLiveData<State>(DEFAULT_STATE)
     private val networkErrorEvent = MutableLiveData<Event<String>>()
 
