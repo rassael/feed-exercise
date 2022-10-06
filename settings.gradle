@@ -1,2 +1,2 @@
 include ':app'
-rootProject.name = "Feed Exercise"
+rootProject.name = "Feed Exercise"  // maybe need to be a name without spaces?
