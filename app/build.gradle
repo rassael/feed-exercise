@@ -102,4 +102,6 @@ dependencies {
     // mock websever for testing retrofit responses
     testImplementation "com.squareup.okhttp3:mockwebserver:4.6.0"
     testImplementation "com.nhaarman.mockitokotlin2:mockito-kotlin:2.2.0"
+
+    testImplementation "com.google.truth:truth:1.1.3"
 }

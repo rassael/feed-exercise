@@ -16,6 +16,11 @@ open class FeedViewModel(private val repository: Repository) : ViewModel() {
     private val stateInternal: MutableLiveData<State> = MutableLiveData<State>(DEFAULT_STATE)
     private val networkErrorEvent = MutableLiveData<Event<String>>()
 
+    init {
+        refresh()
+        updateItems()
+    }
+
     fun getIsLoading(): LiveData<Boolean> {
         return Transformations.map(stateInternal) { it.isLoading }
     }
@@ -24,17 +29,12 @@ open class FeedViewModel(private val repository: Repository) : ViewModel() {
         return Transformations.map(stateInternal) { it.feedItems?.isEmpty() }
     }
 
+
     fun getFeedItems(): LiveData<List<FeedItem>> {
         return Transformations.map(stateInternal) { it.feedItems }
     }
 
-
     fun getNetworkErrorEvent(): LiveData<Event<String>> = networkErrorEvent
-
-    init {
-        refresh()
-        updateItems()
-    }
 
     private fun updateItems() {
         viewModelScope.launch {

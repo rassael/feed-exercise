@@ -2,6 +2,7 @@ package com.lightricks.feedexercise.data
 
 import android.content.Context
 import android.util.Log
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -11,13 +12,15 @@ import com.lightricks.feedexercise.network.FeedApiService
 import com.lightricks.feedexercise.network.GetFeedResponse
 import com.lightricks.feedexercise.network.ItemDto
 import com.lightricks.feedexercise.ui.feed.FeedViewModel
-import com.squareup.moshi.JsonAdapter
-import com.squareup.moshi.Moshi
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import java.io.IOException
 
@@ -26,95 +29,131 @@ import java.io.IOException
 class FeedRepositoryTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext<Context>()
-    private val allDaoItems: List<ItemDto> = fakeFeedResponse().itemDto
-    private val allFeedEntities: List<FeedItemEntity> = allDaoItems.toEntities()
-    private val emptyFeedItemsList: List<FeedItem> = emptyList()
-    private lateinit var testDatabase: FeedDatabase
-    private lateinit var testService: TestService
-    private lateinit var testRepository: Repository
-    private lateinit var testViewModel: FeedViewModel
+    private val daoItems: List<ItemDto> = listOf(
+        ItemDto(configuration = "lensflare-unleash-the-power-of-nature.json",
+            id = "01E18PGE1RYB3R9YF9HRXQ0ZSD",
+            isNew = false,
+            isPremium = true,
+            templateCategories = listOf("01DJ4TM160ETZR0NT4HA2M0ZTK", "01DJ4TM161MRR86QFAXJTWP7NM"),
+            templateName = "lens-flare-template.json",
+            templateThumbnailURI = "UnleashThePowerOfNatureThumbnail.jpg"),
+        ItemDto(configuration = "accountingtravis.json",
+            id = "01DX1RB94P35Q1A2W6AA5XCQZ9",
+            isNew = false,
+            isPremium = true,
+            templateCategories = listOf("01DJ4TM160ETZR0NT4HA2M0ZTK", "01DJ4TM161P490A1DZ3AFKXNNF"),
+            templateName = "lightleaks-template.json",
+            templateThumbnailURI = "AccountingTravisThumbnail.jpg"),
+        ItemDto(configuration = "yeti.json",
+            id = "01EAEFVPZ6MFJEMCA8XB06HB01",
+            isNew = true,
+            isPremium = true,
+            templateCategories = listOf("01DJ4TM160ETZR0NT4HA2M0ZTK", "01DJ4TM161P490A1DZ3AFKXNNF"),
+            templateName = "fashion-template.json",
+            templateThumbnailURI = "yeti-thumbnail.jpg"),
+        ItemDto(configuration = "BusinessDev.json",
+            id = "01DX1RB965Z96AD283559NJT9T",
+            isNew = false,
+            isPremium = true,
+            templateCategories = listOf("01DJ4TM161P490A1DZ3AFKXNNF", "01DJ4TM160ETZR0NT4HA2M0ZTK"),
+            templateName = "holistic-template.json",
+            templateThumbnailURI = "BusinessDevDefaultThumbnail.jpg")
+    )
+    private val feedEntities: List<FeedItemEntity> = daoItems.toEntities()
+    private val emptyEntitiesList: List<FeedItemEntity> = listOf<FeedItemEntity>()
+    private var testDatabase: FeedDatabase = Room.inMemoryDatabaseBuilder(context,
+        FeedDatabase::class.java).build()
+    private  var testService: TestService = TestService()
+    private var testRepository: Repository = FeedRepository(testDatabase, testService)
+    private var testViewModel: FeedViewModel = FeedViewModel(testRepository)
 
-
-    @Before
-    fun repoCreation() {
-        testDatabase = Room.inMemoryDatabaseBuilder(context, FeedDatabase::class.java).build()
-        testService = TestService()
-        testRepository = FeedRepository(testDatabase, testService)
-        testViewModel = FeedViewModel(testRepository)
+    @After
+    fun cleanAfter() = runTest {
+        testDatabase.feedDao.deleteAll()
+        testService.returnSuccess()
+        testService.setItems(listOf<ItemDto>())
     }
 
     @Test
-    fun testRefresh_emptyWebsite_successGet() = runBlocking {
+    fun refresh_dataBaseIaEmptyAndServiceReturnAnEmptyList_dataBaseShouldBeEmpty() = runTest {
+        testService.setItems(listOf<ItemDto>())
+        // test initial state:
         val itemsBeforeRefresh: List<FeedItemEntity> = testDatabase.feedDao.getAll().first()
-        testService.setItems(emptyList())
+        assertEquals(emptyEntitiesList, itemsBeforeRefresh)
+        // refresh the repo:
+        testRepository.refresh()
+        // test:
+        assertEquals(emptyEntitiesList, testDatabase.feedDao.getAll().first())
+    }
+
+    @Test
+    fun refresh_dataBaseIsEmptyAndServiceReturnNonEmptyList_dataBaseShouldContainMatchesEntities() = runTest {
+        testService.setItems(daoItems)
+        // test initial state:
+        assertEquals(emptyEntitiesList, testDatabase.feedDao.getAll().first())
+        // refresh the repo:
         testRepository.refresh()
         val itemsAfterRefresh: List<FeedItemEntity> = testDatabase.feedDao.getAll().first()
-        assertEquals(emptyFeedItemsList, itemsBeforeRefresh)
-        assertEquals(itemsAfterRefresh.toFeedItems(), emptyFeedItemsList)
+        // test:
+        assertEquals(feedEntities, itemsAfterRefresh)
     }
 
     @Test
-    fun testRefresh_fullWebsite_successGet() = runBlocking {
-        val itemsBeforeRefresh: List<FeedItemEntity> = testDatabase.feedDao.getAll().first()
-        testService.setItems(allDaoItems)
+    fun refresh_dataBaseIsNotEmptyAndServiceReturnAnEmptyList_dataBaseShouldBeEmpty() = runTest {
+        // setup
+        testService.setItems(daoItems)
         testRepository.refresh()
-        val itemsAfterRefresh: List<FeedItemEntity> = testDatabase.feedDao.getAll().first()
-        assertEquals(emptyFeedItemsList, itemsBeforeRefresh)
-        assertEquals(allFeedEntities, itemsAfterRefresh)
+        // test initial state:
+        assertEquals(feedEntities, testDatabase.feedDao.getAll().first())
+        testService.setItems(listOf<ItemDto>())  // now service will return empty list
+        testRepository.refresh()
+        // test:
+        assertEquals(emptyEntitiesList, testDatabase.feedDao.getAll().first())
     }
 
     @Test
-    fun testRefresh_emptyAfterFull_successGet() = runBlocking {
-        testService.setItems(allDaoItems)
+    fun refresh_dataBaseIsNotEmptyAndServiceReturnTheSameListWithoutFirstItem_dataBaseShouldContainMatchesEntities() = runTest {
+        // setup
+        testService.setItems(daoItems)
         testRepository.refresh()
-        testService.setItems(emptyList())
+        // test initial state:
+        assertEquals(feedEntities, testDatabase.feedDao.getAll().first())
+        // set service items:
+        testService.setItems(daoItems.drop(1))  // remove first element
         testRepository.refresh()
-        val itemsAfterDeleting: List<FeedItemEntity> = testDatabase.feedDao.getAll().first()
-        assertEquals(emptyFeedItemsList, itemsAfterDeleting)
+        // test:
+        assertEquals(feedEntities.drop(1), testDatabase.feedDao.getAll().first())
     }
 
     @Test
-    fun testRefresh_removeFirstItems_successGet() = runBlocking {
-        testService.setItems(allDaoItems)
+    fun refresh_dataBaseIsEmptyAndServiceThrowAnException_dataBaseShouldBeEmpty() = runTest {
+        // setup
+        testService.setItems(listOf<ItemDto>())
         testRepository.refresh()
-        testService.setItems(allDaoItems.drop(1))  // remove first element
-        testRepository.refresh()
-        val itemsAfterDeleting: List<FeedItemEntity> = testDatabase.feedDao.getAll().first()
-        assertEquals(allFeedEntities.drop(1), itemsAfterDeleting)
-    }
-
-    @Test
-    fun testRefresh_currentEmpty_GetFailure() = runBlocking {
-        testService.setItems(emptyList())
-        testRepository.refresh()
-        testService.returnError()  // now fail
+        // test initial state:
+        assertEquals(emptyEntitiesList, testDatabase.feedDao.getAll().first())
+        // call refresh function
+        testService.returnError()  // now service will fail
         try {
             testRepository.refresh() }
-        catch (e : IOException) {
-            Log.d("networkErr", "error") }  // supposed to fail
-        val currentItems: List<FeedItemEntity> = testDatabase.feedDao.getAll().first()
-        assertEquals(listOf<FeedItemEntity>(), currentItems)
+        catch (e : IOException) { }  // supposed to fail
+        // test:
+        assertEquals(listOf<FeedItemEntity>(), testDatabase.feedDao.getAll().first())
     }
 
     @Test
-    fun testRefresh_currentNotEmpty_GetFailure() = runBlocking {
-        testService.setItems(allDaoItems)
+    fun refresh_dataBaseIsNotEmptyAndServiceThrowAnException_dataBaseShouldContainTheSameContent() = runTest {
+        // setup
+        testService.setItems(daoItems)
         testRepository.refresh()
-        testService.returnError()  // now fail
+        // test initial state:
+        assertEquals(feedEntities, testDatabase.feedDao.getAll().first())
+        testService.returnError()  // now service will fail
         try {
             testRepository.refresh() }
-        catch (e : IOException) {
-            Log.d("networkErr", "error") }  // supposed to fail
-        val currentItems: List<FeedItemEntity> = testDatabase.feedDao.getAll().first()
-        assertEquals(allFeedEntities ,currentItems)
-    }
-
-    private fun fakeFeedResponse(): GetFeedResponse {
-        val moshi = Moshi.Builder().build()
-        val adapter: JsonAdapter<GetFeedResponse> = moshi.adapter(GetFeedResponse::class.java)
-        val jsonName = "get_feed_response.json"
-        val jsonFile = context.assets.open(jsonName).bufferedReader().use { it.readText() }
-        return adapter.fromJson(jsonFile)!!
+        catch (e : IOException) { } // supposed to fail
+        // test
+        assertEquals(feedEntities ,testDatabase.feedDao.getAll().first())
     }
 }
 
